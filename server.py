@@ -28,6 +28,10 @@ class GradeSubmission(BaseModel):
     group_id: int
     grades: dict  # student_id -> score or 'absent'
 
+@app.get("/ping")
+async def ping():
+    return {"status": "alive", "timestamp": datetime.now().isoformat()}
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
