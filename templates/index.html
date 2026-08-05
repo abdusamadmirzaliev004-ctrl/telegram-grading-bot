@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Grade Lesson</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .grade-btn { transition: all 0.15s ease-in-out; }
+        .grade-btn.active-1 { background-color: #ef4444; color: white; border-color: #ef4444; }
+        .grade-btn.active-2 { background-color: #f97316; color: white; border-color: #f97316; }
+        .grade-btn.active-3 { background-color: #eab308; color: white; border-color: #eab308; }
+        .grade-btn.active-4 { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        .grade-btn.active-5 { background-color: #10b981; color: white; border-color: #10b981; }
+        .grade-btn.active-absent { background-color: #64748b; color: white; border-color: #64748b; }
+    </style>
+</head>
+<body class="p-4 pb-24">
+    <!-- Header -->
+    <div class="mb-6 border-b border-slate-800 pb-4">
+        <h1 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span>📝</span> Daily Lesson Grading
+        </h1>
+        <p class="text-xs text-slate-400 mt-1" id="current-date-display">Date: Loading...</p>
+    </div>
+
+    <!-- Group Selector -->
+    <div class="mb-6">
+        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Select Today's Group</label>
+        <select id="group-select" onchange="loadRoster()" class="w-full bg-slate-800 text-slate-100 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">-- Choose Group --</option>
+        </select>
+    </div>
+
+    <!-- Roster Grid -->
+    <div id="roster-container" class="space-y-4">
+        <p class="text-sm text-slate-500 text-center py-8">Select a group to display student roster.</p>
+    </div>
+
+    <!-- Sticky Bottom Bar -->
+    <div class="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 flex items-center justify-between">
+        <div class="text-xs text-slate-400">
+            Graded: <span id="graded-count" class="font-bold text-emerald-400">0</span> / <span id="total-count">0</span>
+        </div>
+        <button onclick="submitGrades()" id="submit-btn" disabled class="bg-indigo-600 disabled:opacity-50 text-white font-semibold text-sm px-6 py-3 rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
+            Save Session
+        </button>
+    </div>
+
+    <script>
+        const tg = window.Telegram?.WebApp;
+        if (tg) tg.expand();
+
+        let currentStudents = [];
+        let gradeState = {};
+
+        document.getElementById('current-date-display').innerText = 'Date: ' + new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+        async function init() {
+            try {
+                const res = await fetch('/api/groups/today');
+                const groups = await res.json();
+                const select = document.getElementById('group-select');
+                select.innerHTML = '<option value="">-- Choose Group --</option>';
+                groups.forEach(g => {
+                    select.innerHTML += `<option value="${g.id}">${g.name} (${g.lesson_time})</option>`;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadRoster() {
+            const groupId = document.getElementById('group-select').value;
+            const container = document.getElementById('roster-container');
+            if (!groupId) {
+                container.innerHTML = '<p class="text-sm text-slate-500 text-center py-8">Select a group to display student roster.</p>';
+                updateCounts();
+                return;
+            }
+
+            const res = await fetch(`/api/roster/${groupId}`);
+            currentStudents = await res.json();
+            gradeState = {};
+
+            document.getElementById('total-count').innerText = currentStudents.length;
+
+            container.innerHTML = currentStudents.map(s => `
+                <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 shadow-sm">
+                    <div class="font-medium text-sm text-slate-200 mb-3">${s.full_name}</div>
+                    <div class="grid grid-cols-6 gap-2">
+                        ${[1,2,3,4,5].map(val => `
+                            <button onclick="setGrade(${s.id}, ${val})" id="btn-${s.id}-${val}" 
+                                class="grade-btn border border-slate-700 bg-slate-900/50 rounded-xl py-2 text-xs font-semibold text-slate-300">
+                                ${val}
+                            </button>
+                        `).join('')}
+                        <button onclick="setGrade(${s.id}, 'absent')" id="btn-${s.id}-absent" 
+                            class="grade-btn border border-slate-700 bg-slate-900/50 rounded-xl py-2 text-xs font-semibold text-slate-400">
+                            Abs
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            updateCounts();
+        }
+
+        function setGrade(studentId, val) {
+            gradeState[studentId] = val;
+            
+            // Reset all buttons for this student
+            [1,2,3,4,5,'absent'].forEach(v => {
+                const btn = document.getElementById(`btn-${studentId}-${v}`);
+                if (btn) btn.className = 'grade-btn border border-slate-700 bg-slate-900/50 rounded-xl py-2 text-xs font-semibold text-slate-300';
+            });
+
+            // Set active class
+            const activeBtn = document.getElementById(`btn-${studentId}-${val}`);
+            if (activeBtn) {
+                activeBtn.className = `grade-btn rounded-xl py-2 text-xs font-bold active-${val}`;
+            }
+
+            updateCounts();
+        }
+
+        function updateCounts() {
+            const count = Object.keys(gradeState).length;
+            document.getElementById('graded-count').innerText = count;
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = count === 0;
+        }
+
+        async function submitGrades() {
+            const groupId = document.getElementById('group-select').value;
+            if (!groupId) return;
+
+            const payload = {
+                group_id: parseInt(groupId),
+                grades: gradeState
+            };
+
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.innerText = 'Saving...';
+            submitBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/grades/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (tg) {
+                        tg.showAlert("✅ Grades submitted successfully!");
+                        tg.close();
+                    } else {
+                        alert("✅ Grades submitted successfully!");
+                    }
+                }
+            } catch (e) {
+                alert("Error submitting grades.");
+                submitBtn.innerText = 'Save Session';
+                submitBtn.disabled = false;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
