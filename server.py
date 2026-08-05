@@ -10,7 +10,10 @@ from pydantic import BaseModel
 from database import init_db
 
 app = FastAPI(title="Telegram Grading Mini App API")
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print("Database init warning:", e)
 
 app.add_middleware(
     CORSMiddleware,

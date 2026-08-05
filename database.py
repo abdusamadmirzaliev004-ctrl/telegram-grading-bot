@@ -57,6 +57,8 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM groups WHERE name LIKE 'demo%'")
     if cursor.fetchone()[0] < 3:
         # Clear existing sample data for clean demo environment
+        cursor.execute("DELETE FROM grades")
+        cursor.execute("DELETE FROM lessons")
         cursor.execute("DELETE FROM students")
         cursor.execute("DELETE FROM groups")
         
