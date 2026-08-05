@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Grade Journal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body class="p-4 md:p-8 max-w-6xl mx-auto">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                <span>📚</span> Academic Journal & Performance Summary
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Live synchronized student records</p>
+        </div>
+        <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2 rounded-xl border border-slate-700">
+            🖨️ Print / Save PDF
+        </button>
+    </div>
+
+    <!-- Group Cards Grid -->
+    <div id="journal-content" class="space-y-8">
+        <p class="text-center text-slate-500 py-12">Loading academic records...</p>
+    </div>
+
+    <script>
+        async function loadJournal() {
+            try {
+                const res = await fetch('/api/reports/summary');
+                const data = await res.json();
+                
+                const container = document.getElementById('journal-content');
+                if (!data || Object.keys(data).length === 0) {
+                    container.innerHTML = '<p class="text-center text-slate-500 py-12">No grading records found yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = Object.entries(data).map(([groupName, groupData]) => `
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                        <div class="bg-slate-800/80 p-4 border-b border-slate-700/80 flex items-center justify-between">
+                            <h2 class="font-bold text-lg text-indigo-400">${groupName}</h2>
+                            <div class="text-xs text-slate-400 flex gap-4">
+                                <span>Students: <strong class="text-slate-200">${groupData.students.length}</strong></span>
+                                <span>Group Avg: <strong class="text-emerald-400">${groupData.group_avg}</strong></span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-slate-300">
+                                <thead class="bg-slate-950/50 text-xs uppercase text-slate-400">
+                                    <tr>
+                                        <th class="py-3 px-4">#</th>
+                                        <th class="py-3 px-4">Student Name</th>
+                                        <th class="py-3 px-4 text-center">Lessons</th>
+                                        <th class="py-3 px-4 text-center">Average Score</th>
+                                        <th class="py-3 px-4 text-right">Performance Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800/60">
+                                    ${groupData.students.map((s, idx) => `
+                                        <tr class="hover:bg-slate-800/30 transition-colors">
+                                            <td class="py-3 px-4 text-slate-500 text-xs">${idx + 1}</td>
+                                            <td class="py-3 px-4 font-medium text-slate-200">${s.name}</td>
+                                            <td class="py-3 px-4 text-center">${s.lessons_graded}</td>
+                                            <td class="py-3 px-4 text-center">
+                                                <span class="font-bold px-2.5 py-1 rounded-lg text-xs ${
+                                                    s.avg >= 4.5 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                                    s.avg >= 3.5 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                                    s.avg >= 2.5 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                                    s.avg > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                                    'bg-slate-800 text-slate-500'
+                                                }">
+                                                    ${s.avg ? s.avg : 'Ungraded'}
+                                                </span>
+                                            </td>
+                                            <td class="py-3 px-4 text-right text-xs">
+                                                ${
+                                                    s.avg >= 4.5 ? '<span class="text-emerald-400 font-semibold">Excellent</span>' :
+                                                    s.avg >= 3.5 ? '<span class="text-blue-400">Good</span>' :
+                                                    s.avg >= 2.5 ? '<span class="text-amber-400">Satisfactory</span>' :
+                                                    s.avg > 0 ? '<span class="text-rose-400">Needs Attention</span>' :
+                                                    '<span class="text-slate-500">Pending</span>'
+                                                }
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        loadJournal();
+    </script>
+</body>
+</html>

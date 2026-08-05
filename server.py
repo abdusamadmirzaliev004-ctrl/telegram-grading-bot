@@ -1,8 +1,10 @@
 import sqlite3
 import json
+import io
+import csv
 from datetime import datetime
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -42,6 +44,10 @@ async def ping():
 async def read_root(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
 
+@app.get("/journal", response_class=HTMLResponse)
+async def read_journal(request: Request):
+    return templates.TemplateResponse(request=request, name="journal.html")
+
 @app.get("/api/groups/today")
 async def get_today_groups():
     conn = get_db()
@@ -49,8 +55,6 @@ async def get_today_groups():
     cursor.execute("SELECT id, name, schedule_days, lesson_time FROM groups")
     groups = cursor.fetchall()
     conn.close()
-    
-    # Return all groups for demo purposes
     return [{"id": g["id"], "name": g["name"], "lesson_time": g["lesson_time"]} for g in groups]
 
 @app.get("/api/roster/{group_id}")
@@ -62,6 +66,92 @@ async def get_roster(group_id: int):
     conn.close()
     return [{"id": s["id"], "full_name": s["full_name"]} for s in students]
 
+@app.get("/api/reports/summary")
+async def get_reports_summary():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id, name FROM groups")
+    groups = cursor.fetchall()
+    
+    result = {}
+    for g in groups:
+        group_id = g["id"]
+        group_name = g["name"]
+        
+        cursor.execute('''
+            SELECT s.id, s.full_name, AVG(gr.score) as avg_score, COUNT(gr.id) as lessons_graded
+            FROM students s
+            LEFT JOIN grades gr ON s.id = gr.student_id
+            WHERE s.group_id = ?
+            GROUP BY s.id
+        ''', (group_id,))
+        students = cursor.fetchall()
+        
+        student_list = []
+        scores = []
+        for s in students:
+            avg_val = round(s["avg_score"], 2) if s["avg_score"] is not None else None
+            if avg_val is not None:
+                scores.append(avg_val)
+            student_list.append({
+                "id": s["id"],
+                "name": s["full_name"],
+                "avg": avg_val,
+                "lessons_graded": s["lessons_graded"]
+            })
+            
+        group_avg = round(sum(scores) / len(scores), 2) if scores else "N/A"
+        result[group_name] = {
+            "group_avg": group_avg,
+            "students": student_list
+        }
+        
+    conn.close()
+    return result
+
+@app.get("/api/reports/csv")
+async def export_csv():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT g.name as group_name, s.full_name, COUNT(gr.id) as lessons_graded, 
+               ROUND(AVG(gr.score), 2) as avg_score
+        FROM students s
+        JOIN groups g ON s.group_id = g.id
+        LEFT JOIN grades gr ON s.id = gr.student_id
+        GROUP BY s.id
+        ORDER BY g.name, s.full_name
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Group Name", "Student Name", "Lessons Graded", "Average Score", "Status"])
+
+    for r in rows:
+        avg = r["avg_score"] if r["avg_score"] is not None else "N/A"
+        if avg == "N/A":
+            status = "Pending"
+        elif avg >= 4.5:
+            status = "Excellent"
+        elif avg >= 3.5:
+            status = "Good"
+        elif avg >= 2.5:
+            status = "Satisfactory"
+        else:
+            status = "Needs Attention"
+            
+        writer.writerow([r["group_name"], r["full_name"], r["lessons_graded"], avg, status])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=academic_grade_journal.csv"}
+    )
+
 @app.post("/api/grades/submit")
 async def submit_grades(payload: GradeSubmission):
     conn = get_db()
@@ -69,7 +159,6 @@ async def submit_grades(payload: GradeSubmission):
     
     today_str = datetime.now().strftime("%Y-%m-%d")
     
-    # Create or fetch today's lesson
     cursor.execute("SELECT id FROM lessons WHERE group_id = ? AND date = ?", (payload.group_id, today_str))
     lesson = cursor.fetchone()
     
