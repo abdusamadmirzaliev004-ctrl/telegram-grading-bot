@@ -53,27 +53,47 @@ def init_db():
         )
     ''')
     
-    # Seed initial data if empty
-    cursor.execute("SELECT COUNT(*) FROM groups")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO groups (name, schedule_days, lesson_time) VALUES (?, ?, ?)",
-                       ("Group A - Mathematics", json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]), "16:00"))
-        cursor.execute("INSERT INTO groups (name, schedule_days, lesson_time) VALUES (?, ?, ?)",
-                       ("Group B - Physics", json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]), "18:00"))
+    # Check if demo1 exists, if not seed demo1, demo2, demo3
+    cursor.execute("SELECT COUNT(*) FROM groups WHERE name LIKE 'demo%'")
+    if cursor.fetchone()[0] < 3:
+        # Clear existing sample data for clean demo environment
+        cursor.execute("DELETE FROM students")
+        cursor.execute("DELETE FROM groups")
         
-        # Add sample students for Group 1
-        students_a = ["Alexander Pierce", "Elena Rostova", "Marcus Vance", "Sofia Chen", "Liam O'Connor"]
-        for s in students_a:
+        all_days = json.dumps(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"])
+        
+        # Create demo1, demo2, demo3
+        cursor.execute("INSERT INTO groups (id, name, schedule_days, lesson_time) VALUES (1, 'demo1', ?, '14:00')", (all_days,))
+        cursor.execute("INSERT INTO groups (id, name, schedule_days, lesson_time) VALUES (2, 'demo2', ?, '16:00')", (all_days,))
+        cursor.execute("INSERT INTO groups (id, name, schedule_days, lesson_time) VALUES (3, 'demo3', ?, '18:00')", (all_days,))
+        
+        demo1_students = [
+            "Alexander Pierce", "Elena Rostova", "Marcus Vance", "Sofia Chen", "Liam O'Connor",
+            "Victoria Sterling", "Daniel Kim", "Maya Patel", "Lucas Dubois", "Chloe Bennett",
+            "Ethan Wright", "Olivia Martinez", "Noah Thorne"
+        ]
+        for s in demo1_students:
             cursor.execute("INSERT INTO students (group_id, full_name) VALUES (1, ?)", (s,))
             
-        # Add sample students for Group 2
-        students_b = ["Dmitry Volkov", "Sarah Jenkins", "Hiroshi Tanaka", "Amina Said"]
-        for s in students_b:
+        demo2_students = [
+            "Dmitry Volkov", "Sarah Jenkins", "Hiroshi Tanaka", "Amina Said", "Gabriel Silva",
+            "Hanna Schmidt", "Ryan Cooper", "Isabella Rossi", "Kevin Zhang", "Amelia Hughes",
+            "Oscar Lindqvist", "Fatima Al-Mansoor", "Julian Mercer"
+        ]
+        for s in demo2_students:
             cursor.execute("INSERT INTO students (group_id, full_name) VALUES (2, ?)", (s,))
+            
+        demo3_students = [
+            "Benjamin Hayes", "Zoe Kravitz", "David Miller", "Grace Taylor", "Nathan Reed",
+            "Emma Watson", "Samuel Jackson", "Hannah Montana", "Arthur Pendelton", "Mia Khalifa",
+            "Oliver Queen", "Charlotte York", "William Shakespeare"
+        ]
+        for s in demo3_students:
+            cursor.execute("INSERT INTO students (group_id, full_name) VALUES (3, ?)", (s,))
             
     conn.commit()
     conn.close()
 
 if __name__ == "__main__":
     init_db()
-    print("Database initialized successfully.")
+    print("Database initialized with demo1, demo2, demo3 and 13 students each.")

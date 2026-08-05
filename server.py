@@ -7,7 +7,10 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from database import init_db
+
 app = FastAPI(title="Telegram Grading Mini App API")
+init_db()
 
 app.add_middleware(
     CORSMiddleware,
