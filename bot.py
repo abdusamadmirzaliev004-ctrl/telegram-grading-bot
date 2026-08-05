@@ -19,7 +19,7 @@ def get_db():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     # Note: For actual Telegram WebApp testing, replace URL below with your public HTTPS server (e.g. ngrok / domain)
-    mini_app_url = "https://fruity-dogs-flash.loca.lt"
+    mini_app_url = os.getenv("RENDER_EXTERNAL_URL", "https://telegram-grading-bot.onrender.com")
     
     keyboard = [
         [InlineKeyboardButton("📊 Grade Lesson (Mini App)", web_app=WebAppInfo(url=mini_app_url))],
